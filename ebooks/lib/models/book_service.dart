@@ -12,6 +12,7 @@ class BookService {
         return Book(
           title: bookData['title'],
           coverUrl: bookData['cover_url'],
+          downloadUrl: bookData['download_url'],
         );
       }).toList();
     } else {
