@@ -12,7 +12,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Minha Estante de Livros',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.yellow).copyWith(background: Colors.grey[500]),
       ),
       home: HomePage(),
     );

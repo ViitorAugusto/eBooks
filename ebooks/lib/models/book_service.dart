@@ -11,6 +11,7 @@ class BookService {
       return data.map((bookData) {
         return Book(
           title: bookData['title'],
+          author: bookData['author'],
           coverUrl: bookData['cover_url'],
           downloadUrl: bookData['download_url'],
         );

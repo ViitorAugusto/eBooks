@@ -1,6 +1,11 @@
+import 'dart:async';
+import 'package:flutter/widgets.dart' as flutter;
 import 'package:dio/dio.dart';
+
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:vocsy_epub_viewer/epub_viewer.dart';
+
 import '../models/book.dart';
 import '../models/book_service.dart';
 
@@ -27,24 +32,45 @@ class _HomePageState extends State<HomePage>
     super.dispose();
   }
 
-  Future<void> _downloadAndSaveBook(Book book) async {
+  Future<void> _openBook(Book book) async {
     Dio dio = Dio();
     try {
       var dir = await getApplicationDocumentsDirectory();
       String filePath = '${dir.path}/${book.title}.epub';
       await dio.download(book.downloadUrl, filePath);
-      const snackBar = SnackBar(
-        content: Text('Livro baixado com sucesso!'),
+
+      // Remova a linha abaixo
+      // EpubBook epubBook = await EpubReader.readBook(File(filePath).readAsBytesSync());
+
+      VocsyEpub.setConfig(
+        themeColor: Theme.of(context).primaryColor,
+        identifier: book.title,
+        scrollDirection: EpubScrollDirection.ALLDIRECTIONS,
+        allowSharing: true,
+        enableTts: true,
+        nightMode: true,
       );
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-      print('Livro baixado com sucesso: $filePath');
+
+      VocsyEpub.locatorStream.listen((locator) {
+        print('LOCATOR: $locator');
+      });
+
+      // Corrija esta linha para passar o caminho do arquivo (String)
+      VocsyEpub.open(filePath);
+
+      // Após fechar a visualização do livro, recarregue a lista de livros caso esteja na aba de Favoritos
+      if (_tabController!.index == 1) {
+        setState(() {
+          _books = BookService.fetchBooks();
+        });
+      }
     } catch (error) {
       final snackBar = SnackBar(
-        content: Text('Erro ao baixar o livro: $error'),
+        content: Text('Erro ao baixar e abrir o livro: $error'),
       );
       ScaffoldMessenger.of(context).showSnackBar(snackBar);
 
-      print('Erro ao baixar o livro: $error');
+      print('Erro ao baixar e abrir o livro: $error');
     }
   }
 
@@ -52,11 +78,17 @@ class _HomePageState extends State<HomePage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Minha Estante de Livros'),
+        title: const Text('Minha Estante de Livros',
+            style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.grey[800],
         bottom: TabBar(
           controller: _tabController,
+          labelColor: Colors.yellow, 
+          unselectedLabelColor: Colors.grey[300],
           tabs: const [
-            Tab(text: 'Livros'),
+            Tab(
+              text: 'Livros',
+            ),
             Tab(text: 'Favoritos'),
           ],
         ),
@@ -93,7 +125,7 @@ class _HomePageState extends State<HomePage>
                             Expanded(
                               child: Stack(
                                 children: [
-                                  Image.network(
+                                  flutter.Image.network(
                                     book.coverUrl,
                                     fit: BoxFit.cover,
                                   ),
@@ -163,7 +195,7 @@ class _HomePageState extends State<HomePage>
                         Expanded(
                           child: Stack(
                             children: [
-                              Image.network(
+                              flutter.Image.network(
                                 book.coverUrl,
                                 fit: BoxFit.cover,
                               ),
@@ -201,8 +233,7 @@ class _HomePageState extends State<HomePage>
                           IconButton(
                             icon: const Icon(Icons.file_download_outlined),
                             onPressed: () {
-
-                              _downloadAndSaveBook(book);
+                              _openBook(book);
                             },
                           )
                       ],
