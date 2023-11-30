@@ -4,11 +4,12 @@ class Book {
   final String downloadUrl;
   final String author;
   bool isFavorite;
-  
+
   Book({
-    required this.title, 
-    required this.coverUrl, 
+    required this.title,
+    required this.coverUrl,
     required this.downloadUrl,
     required this.author,
-    this.isFavorite = false});
+    this.isFavorite = false,
+  });
 }

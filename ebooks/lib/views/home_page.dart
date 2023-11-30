@@ -1,16 +1,16 @@
 import 'dart:async';
-import 'package:flutter/widgets.dart' as flutter;
-import 'package:dio/dio.dart';
-
+import 'package:ebooks/utils/book_utils.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:vocsy_epub_viewer/epub_viewer.dart';
 
 import '../models/book.dart';
-import '../models/book_service.dart';
+import '../services/book_open_service.dart';
+import '../services/book_downloadBook_service.dart';
+import '../widgets/book_grid.dart';
 
 class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
   @override
   _HomePageState createState() => _HomePageState();
 }
@@ -43,9 +43,20 @@ class _HomePageState extends State<HomePage>
     });
   }
 
-  void _toggleViewingBook(bool isViewing) {
+  Future<void> _toggleFavorite(Book book) async {
     setState(() {
-      _isViewingBook = isViewing;
+      if (_tabController!.index == 1) {
+        if (book.isFavorite) {
+          book.isFavorite = false;
+          _books = _books.then((books) {
+            books.remove(book);
+            return Future.value(List.from(books));
+          });
+        }
+      } else {
+        book.isFavorite = !book.isFavorite;
+      }
+      _saveFavorites();
     });
   }
 
@@ -55,76 +66,11 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _downloadBook(Book book) async {
-    Dio dio = Dio();
-    try {
-      var dir = await getApplicationDocumentsDirectory();
-      String filePath = '${dir.path}/${book.title}.epub';
-      await dio.download(book.downloadUrl, filePath);
-      final snackBar = SnackBar(
-        content: Text('Livro baixado com sucesso: ${book.title}'),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    } catch (error) {
-      final snackBar = SnackBar(
-        content: Text('Erro ao baixar o livro: $error'),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-      print('Erro ao baixar o livro: $error');
-    }
+    downloadBook(context, book);
   }
 
   Future<void> _openBook(Book book) async {
-    Dio dio = Dio();
-    try {
-      var dir = await getApplicationDocumentsDirectory();
-      String filePath = '${dir.path}/${book.title}.epub';
-      await dio.download(book.downloadUrl, filePath);
-      VocsyEpub.setConfig(
-        themeColor: Theme.of(context).primaryColor,
-        identifier: book.title,
-        scrollDirection: EpubScrollDirection.ALLDIRECTIONS,
-        allowSharing: true,
-        enableTts: true,
-        nightMode: true,
-      );
-      VocsyEpub.locatorStream.listen((locator) {
-        print('LOCATOR: $locator');
-      });
-
-      VocsyEpub.open(filePath);
-
-      // Add the book title to the list of favorites if not already added
-      if (!_favoriteTitles.contains(book.title)) {
-        setState(() {
-          _favoriteTitles.add(book.title);
-          _saveFavorites();
-        });
-      }
-
-      // Update the existing _books list with the new favorite status
-      setState(() {
-        _books = _books.then((books) {
-          return books.map((b) {
-            if (b.title == book.title) {
-              return Book(
-                title: b.title,
-                author: b.author,
-                coverUrl: b.coverUrl,
-                downloadUrl: b.downloadUrl,
-                isFavorite: true,
-              );
-            }
-            return b;
-          }).toList();
-        });
-      });
-    } catch (error) {
-      final snackBar = SnackBar(
-        content: Text('Erro ao baixar e abrir o livro: $error'),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-      print('Erro ao baixar e abrir o livro: $error');
-    }
+    openBook(context, book, _favoriteTitles, _books);
   }
 
   @override
@@ -159,71 +105,11 @@ class _HomePageState extends State<HomePage>
               } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                 return const Text('Nenhum livro encontrado.');
               } else {
-                return GridView.builder(
-                  padding: const EdgeInsets.only(top: 16.0),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 8.0,
-                    mainAxisSpacing: 8.0,
-                  ),
-                  itemCount: snapshot.data!.length,
-                  itemBuilder: (context, index) {
-                    final book = snapshot.data![index];
-                    return Padding(
-                        padding: const EdgeInsets.only(
-                            bottom: 16.0), // Espaçamento inferior
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Expanded(
-                              child: Stack(
-                                children: [
-                                  flutter.Image.network(
-                                    book.coverUrl,
-                                    fit: BoxFit.cover,
-                                  ),
-                                  Positioned(
-                                    top: -12,
-                                    right: -12,
-                                    child: IconButton(
-                                      icon: Icon(
-                                        book.isFavorite
-                                            ? Icons.bookmark
-                                            : Icons.bookmark_border,
-                                        color: book.isFavorite
-                                            ? Colors.red
-                                            : Colors.black,
-                                      ),
-                                      onPressed: () {
-                                        setState(() {
-                                          book.isFavorite = !book.isFavorite;
-                                        });
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              book.title,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 14.0,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                            ),
-                            Text(
-                              book.author,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 11.0,
-                                color: Colors.grey[900],
-                              ),
-                            ),
-                          ],
-                        ));
-                  },
+                return BookGrid(
+                  books: snapshot.data!,
+                  onToggleFavorite: _toggleFavorite,
+                  onOpenBook: _openBook,
+                  onDownloadBook: _downloadBook,
                 );
               }
             },
@@ -240,90 +126,14 @@ class _HomePageState extends State<HomePage>
               } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                 return const Text('Nenhum livro favorito encontrado.');
               } else {
-                // Filtrar os livros marcados como favoritos
                 final List<Book> favoriteBooks =
                     snapshot.data!.where((book) => book.isFavorite).toList();
 
-                return GridView.builder(
-                  padding: const EdgeInsets.only(top: 16.0),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 8.0,
-                    mainAxisSpacing: 8.0,
-                  ),
-                  itemCount: favoriteBooks.length,
-                  itemBuilder: (context, index) {
-                    final book = favoriteBooks[index];
-
-                    return Column(
-                      children: [
-                        Expanded(
-                          child: Stack(
-                            children: [
-                              flutter.Image.network(
-                                book.coverUrl,
-                                fit: BoxFit.cover,
-                              ),
-                              Positioned(
-                                top: -12,
-                                right: -12,
-                                child: IconButton(
-                                    icon: Icon(
-                                      book.isFavorite
-                                          ? Icons.bookmark
-                                          : Icons.bookmark_border,
-                                      color: book.isFavorite
-                                          ? Colors.red
-                                          : Colors.black,
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        if (_tabController!.index == 1) {
-                                          if (book.isFavorite) {
-                                            book.isFavorite = false;
-                                            _books = _books.then((books) {
-                                              books.remove(book);
-                                              return Future.value(
-                                                  List.from(books));
-                                            });
-                                          }
-                                        } else {
-                                          book.isFavorite = !book.isFavorite;
-                                        }
-                                      });
-                                    }),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          book.title,
-                          textAlign: TextAlign
-                              .center, // Alinhamento centralizado do texto
-                        ),
-                        if (book.isFavorite)
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.remove_red_eye),
-                                onPressed: () {
-                                  // Adicione a lógica para visualizar o livro
-                                  _openBook(book);
-                                },
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.file_download_outlined),
-                                onPressed: () {
-                                  // Adicione a lógica para baixar o livro
-                                  _downloadBook(book);
-                                },
-                              ),
-                            ],
-                          )
-                      ],
-                    );
-                  },
+                return BookGrid(
+                  books: favoriteBooks,
+                  onToggleFavorite: _toggleFavorite,
+                  onOpenBook: _openBook,
+                  onDownloadBook: _downloadBook,
                 );
               }
             },

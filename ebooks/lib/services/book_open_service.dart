@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'book.dart';
+import '../models/book.dart';
 
 class BookService {
   static Future<List<Book>> fetchBooks() async {
-    final response = await http.get(Uri.parse('https://escribo.com/books.json'));
+    final response =
+        await http.get(Uri.parse('https://escribo.com/books.json'));
 
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
