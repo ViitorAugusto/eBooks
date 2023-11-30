@@ -83,7 +83,7 @@ class _HomePageState extends State<HomePage>
         backgroundColor: Colors.grey[800],
         bottom: TabBar(
           controller: _tabController,
-          labelColor: Colors.yellow, 
+          labelColor: Colors.yellow,
           unselectedLabelColor: Colors.grey[300],
           tabs: const [
             Tab(
@@ -203,23 +203,30 @@ class _HomePageState extends State<HomePage>
                                 top: -12,
                                 right: -12,
                                 child: IconButton(
-                                  icon: Icon(
-                                    book.isFavorite
-                                        ? Icons.bookmark
-                                        : Icons.bookmark_border,
-                                    color: book.isFavorite
-                                        ? Colors.red
-                                        : Colors.black,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      book.isFavorite = !book.isFavorite;
-                                      if (_tabController!.index == 1) {
-                                        _books = BookService.fetchBooks();
-                                      }
-                                    });
-                                  },
-                                ),
+                                    icon: Icon(
+                                      book.isFavorite
+                                          ? Icons.bookmark
+                                          : Icons.bookmark_border,
+                                      color: book.isFavorite
+                                          ? Colors.red
+                                          : Colors.black,
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        if (_tabController!.index == 1) {
+                                          if (book.isFavorite) {
+                                            book.isFavorite = false;
+                                            _books = _books.then((books) {
+                                              books.remove(book);
+                                              return Future.value(
+                                                  List.from(books));
+                                            });
+                                          }
+                                        } else {
+                                          book.isFavorite = !book.isFavorite;
+                                        }
+                                      });
+                                    }),
                               ),
                             ],
                           ),
