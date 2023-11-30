@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vocsy_epub_viewer/epub_viewer.dart';
 
 import '../models/book.dart';
@@ -18,12 +19,15 @@ class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
   late Future<List<Book>> _books;
   TabController? _tabController;
+  List<String> _favoriteTitles = [];
+  bool _isViewingBook = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _books = BookService.fetchBooks();
+    _loadFavorites();
   }
 
   @override
@@ -32,16 +36,49 @@ class _HomePageState extends State<HomePage>
     super.dispose();
   }
 
+  Future<void> _loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _favoriteTitles = prefs.getStringList('favorites') ?? [];
+    });
+  }
+
+  void _toggleViewingBook(bool isViewing) {
+    setState(() {
+      _isViewingBook = isViewing;
+    });
+  }
+
+  Future<void> _saveFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setStringList('favorites', _favoriteTitles);
+  }
+
+  Future<void> _downloadBook(Book book) async {
+    Dio dio = Dio();
+    try {
+      var dir = await getApplicationDocumentsDirectory();
+      String filePath = '${dir.path}/${book.title}.epub';
+      await dio.download(book.downloadUrl, filePath);
+      final snackBar = SnackBar(
+        content: Text('Livro baixado com sucesso: ${book.title}'),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    } catch (error) {
+      final snackBar = SnackBar(
+        content: Text('Erro ao baixar o livro: $error'),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      print('Erro ao baixar o livro: $error');
+    }
+  }
+
   Future<void> _openBook(Book book) async {
     Dio dio = Dio();
     try {
       var dir = await getApplicationDocumentsDirectory();
       String filePath = '${dir.path}/${book.title}.epub';
       await dio.download(book.downloadUrl, filePath);
-
-      // Remova a linha abaixo
-      // EpubBook epubBook = await EpubReader.readBook(File(filePath).readAsBytesSync());
-
       VocsyEpub.setConfig(
         themeColor: Theme.of(context).primaryColor,
         identifier: book.title,
@@ -50,26 +87,42 @@ class _HomePageState extends State<HomePage>
         enableTts: true,
         nightMode: true,
       );
-
       VocsyEpub.locatorStream.listen((locator) {
         print('LOCATOR: $locator');
       });
 
-      // Corrija esta linha para passar o caminho do arquivo (String)
       VocsyEpub.open(filePath);
 
-      // Após fechar a visualização do livro, recarregue a lista de livros caso esteja na aba de Favoritos
-      if (_tabController!.index == 1) {
+      // Add the book title to the list of favorites if not already added
+      if (!_favoriteTitles.contains(book.title)) {
         setState(() {
-          _books = BookService.fetchBooks();
+          _favoriteTitles.add(book.title);
+          _saveFavorites();
         });
       }
+
+      // Update the existing _books list with the new favorite status
+      setState(() {
+        _books = _books.then((books) {
+          return books.map((b) {
+            if (b.title == book.title) {
+              return Book(
+                title: b.title,
+                author: b.author,
+                coverUrl: b.coverUrl,
+                downloadUrl: b.downloadUrl,
+                isFavorite: true,
+              );
+            }
+            return b;
+          }).toList();
+        });
+      });
     } catch (error) {
       final snackBar = SnackBar(
         content: Text('Erro ao baixar e abrir o livro: $error'),
       );
       ScaffoldMessenger.of(context).showSnackBar(snackBar);
-
       print('Erro ao baixar e abrir o livro: $error');
     }
   }
@@ -153,8 +206,20 @@ class _HomePageState extends State<HomePage>
                             ),
                             Text(
                               book.title,
-                              textAlign: TextAlign
-                                  .center, // Alinhamento centralizado do texto
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 14.0,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
+                            ),
+                            Text(
+                              book.author,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 11.0,
+                                color: Colors.grey[900],
+                              ),
                             ),
                           ],
                         ));
@@ -237,11 +302,24 @@ class _HomePageState extends State<HomePage>
                               .center, // Alinhamento centralizado do texto
                         ),
                         if (book.isFavorite)
-                          IconButton(
-                            icon: const Icon(Icons.file_download_outlined),
-                            onPressed: () {
-                              _openBook(book);
-                            },
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.remove_red_eye),
+                                onPressed: () {
+                                  // Adicione a lógica para visualizar o livro
+                                  _openBook(book);
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.file_download_outlined),
+                                onPressed: () {
+                                  // Adicione a lógica para baixar o livro
+                                  _downloadBook(book);
+                                },
+                              ),
+                            ],
                           )
                       ],
                     );
