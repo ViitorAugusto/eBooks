@@ -22,3 +22,5 @@ Future<void> downloadBook(BuildContext context, Book book) async {
     print('Erro ao baixar o livro: $error');
   }
 }
+
+

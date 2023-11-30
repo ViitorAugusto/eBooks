@@ -44,21 +44,22 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _toggleFavorite(Book book) async {
-    setState(() {
-      if (_tabController!.index == 1) {
-        if (book.isFavorite) {
-          book.isFavorite = false;
-          _books = _books.then((books) {
-            books.remove(book);
-            return Future.value(List.from(books));
-          });
-        }
-      } else {
-        book.isFavorite = !book.isFavorite;
+  setState(() {
+    if (_tabController!.index == 1) {
+      if (book.isFavorite) {
+        book.isFavorite = false;
+        _favoriteTitles.remove(book.title);
+        _saveFavorites();
       }
-      _saveFavorites();
-    });
-  }
+    } else {
+      book.isFavorite = !book.isFavorite;
+      if (book.isFavorite && !_favoriteTitles.contains(book.title)) {
+        _favoriteTitles.add(book.title);
+        _saveFavorites();
+      }
+    }
+  });
+}
 
   Future<void> _saveFavorites() async {
     final prefs = await SharedPreferences.getInstance();
